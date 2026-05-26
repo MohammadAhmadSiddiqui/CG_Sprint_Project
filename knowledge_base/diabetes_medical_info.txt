@@ -1,0 +1,65 @@
+DIABETES MEDICAL KNOWLEDGE BASE
+=================================
+
+WHAT IS DIABETES?
+Diabetes is a chronic condition that affects how your body processes blood glucose (sugar).
+Type 1 diabetes: The pancreas produces little or no insulin. It requires insulin therapy.
+Type 2 diabetes: The body doesn't use insulin well. It is the most common form.
+Gestational diabetes: Occurs during pregnancy and usually resolves after birth.
+
+RISK FACTORS FOR DIABETES
+- Age above 45 years
+- BMI greater than 25 (overweight) or greater than 30 (obese)
+- Family history of diabetes
+- High blood pressure (hypertension)
+- History of heart disease
+- Smoking history (current or former smokers have higher risk)
+- Physical inactivity
+- High HbA1c levels (above 5.7% indicates prediabetes, above 6.5% indicates diabetes)
+- High fasting blood glucose (above 100 mg/dL indicates prediabetes)
+
+DIAGNOSTIC CRITERIA
+- Normal HbA1c: below 5.7%
+- Prediabetes HbA1c: 5.7% to 6.4%
+- Diabetes HbA1c: 6.5% or higher
+- Normal fasting blood glucose: below 100 mg/dL
+- Prediabetes fasting glucose: 100 to 125 mg/dL
+- Diabetes fasting glucose: 126 mg/dL or higher
+
+BLOOD GLUCOSE LEVELS
+- Normal blood glucose (fasting): 70–99 mg/dL
+- Prediabetes: 100–125 mg/dL
+- Diabetes: 126 mg/dL or above
+- Post-meal (2 hours): below 140 mg/dL is normal
+
+HbA1c EXPLAINED
+HbA1c (glycated hemoglobin) measures average blood sugar over 2–3 months.
+It is expressed as a percentage. Higher values mean poorer blood sugar control.
+Doctors use HbA1c to diagnose and monitor diabetes management.
+
+BMI CATEGORIES
+- Underweight: BMI below 18.5
+- Normal weight: BMI 18.5 to 24.9
+- Overweight: BMI 25 to 29.9
+- Obese: BMI 30 or above
+
+TREATMENT OPTIONS
+Type 2 diabetes is managed with lifestyle changes, oral medications (metformin), 
+and sometimes insulin. Regular exercise, healthy diet, and weight loss can 
+reverse prediabetes and improve type 2 diabetes outcomes.
+
+COMPLICATIONS OF UNCONTROLLED DIABETES
+- Cardiovascular disease and stroke
+- Kidney damage (nephropathy)
+- Eye damage (retinopathy) and blindness
+- Nerve damage (neuropathy)
+- Foot problems and amputations
+- Increased infection risk
+
+PREVENTION TIPS
+- Maintain healthy body weight
+- Exercise at least 150 minutes per week
+- Eat a balanced, low-sugar diet
+- Avoid smoking
+- Regular blood sugar monitoring
+- Annual health check-ups for at-risk individuals

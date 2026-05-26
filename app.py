@@ -1,0 +1,221 @@
+import os
+import struct
+import logging
+import time
+import pyodbc
+from datetime import datetime, timezone
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional
+from azure.identity import DefaultAzureCredential
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from agents.orchestrator import Orchestrator
+from agents.ml_expert_agent import MLExpertAgent
+from agents.document_assistant_agent import DocumentAssistantAgent
+
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
+
+
+# ── Azure SQL - fresh connection each time ────────────────────────────────────
+def get_sql_connection():
+    try:
+        credential   = DefaultAzureCredential()
+        token        = credential.get_token("https://database.windows.net/.default")
+        token_bytes  = token.token.encode("utf-16-le")
+        token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+        conn_str = (
+            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+            f"SERVER={os.getenv('AZURE_SQL_SERVER')};"
+            f"DATABASE={os.getenv('AZURE_SQL_DATABASE')};"
+            f"Encrypt=yes;TrustServerCertificate=no;"
+        )
+        return pyodbc.connect(conn_str, attrs_before={1256: token_struct}, timeout=30)
+    except Exception as e:
+        logger.warning(f"SQL connection failed: {e}")
+        return None
+
+
+def ensure_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='patient_records' AND xtype='U')
+        CREATE TABLE patient_records (
+            id                  INT IDENTITY(1,1) PRIMARY KEY,
+            name                NVARCHAR(100),
+            gender              NVARCHAR(10),
+            age                 FLOAT,
+            hypertension        INT,
+            heart_disease       INT,
+            smoking_history     NVARCHAR(50),
+            bmi                 FLOAT,
+            HbA1c_level         FLOAT,
+            blood_glucose_level FLOAT,
+            ingested_at         NVARCHAR(50)
+        )
+    """)
+    conn.commit()
+
+
+# ── App ───────────────────────────────────────────────────────────────────────
+app = FastAPI(
+    title="Healthcare Multi-Agent AI Platform",
+    description="4 REST APIs: Data Ingestion | ML Prediction | Document Search | Agent Interaction",
+    version="1.0.0",
+)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+orchestrator = None
+ml_agent     = None
+doc_agent    = None
+
+@app.get("/")
+def serve_frontend():
+    return FileResponse("index.html")
+
+@app.on_event("startup")
+async def startup():
+    global orchestrator, ml_agent, doc_agent
+    logger.info("Loading agents...")
+    orchestrator = Orchestrator()
+    ml_agent     = MLExpertAgent()
+    doc_agent    = DocumentAssistantAgent()
+    logger.info("All agents ready")
+
+
+# ── Models ────────────────────────────────────────────────────────────────────
+class PatientRecord(BaseModel):
+    name:                Optional[str] = "Anonymous"
+    gender:              str
+    age:                 float
+    hypertension:        int
+    heart_disease:       int
+    smoking_history:     str
+    bmi:                 float
+    HbA1c_level:         float
+    blood_glucose_level: float
+
+class PredictRequest(BaseModel):
+    gender:              str
+    age:                 float
+    hypertension:        int
+    heart_disease:       int
+    smoking_history:     str
+    bmi:                 float
+    HbA1c_level:         float
+    blood_glucose_level: float
+
+class SearchRequest(BaseModel):
+    question: str
+
+class AgentRequest(BaseModel):
+    query:        str
+    patient_data: Optional[dict] = None
+
+
+# ── API 1: Data Ingestion ─────────────────────────────────────────────────────
+@app.post("/api/ingest", summary="1. Data Ingestion – Store patient record in Azure SQL")
+def ingest(record: PatientRecord):
+    try:
+        data = record.model_dump()
+        data["ingested_at"] = datetime.now(timezone.utc).isoformat()
+
+        saved = False
+        for attempt in range(3):
+            try:
+                conn = get_sql_connection()
+                if conn:
+                    ensure_table(conn)
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO patient_records
+                        (name, gender, age, hypertension, heart_disease,
+                         smoking_history, bmi, HbA1c_level, blood_glucose_level, ingested_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?)
+                    """, data["name"], data["gender"], data["age"],
+                        data["hypertension"], data["heart_disease"],
+                        data["smoking_history"], data["bmi"],
+                        data["HbA1c_level"], data["blood_glucose_level"],
+                        data["ingested_at"])
+                    conn.commit()
+                    conn.close()
+                    saved = True
+                    logger.info(f"Patient saved to Azure SQL (attempt {attempt+1}): {data['name']}")
+                    break
+            except Exception as retry_err:
+                logger.warning(f"Attempt {attempt+1} failed: {retry_err}")
+                time.sleep(1)
+
+        record_id = f"sql_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+        return {
+            "status":    "success",
+            "message":   "Patient record ingested" + (" to Azure SQL" if saved else " locally (DB retry failed)"),
+            "record_id": record_id,
+            "db_saved":  saved,
+            "data":      data,
+        }
+    except Exception as e:
+        logger.error(f"Ingestion error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── API 2: ML Prediction ──────────────────────────────────────────────────────
+@app.post("/api/predict", summary="2. ML Prediction – Diabetes risk prediction")
+def predict(req: PredictRequest):
+    try:
+        patient = req.model_dump()
+        logger.info(f"Predict: age={patient['age']}, bmi={patient['bmi']}")
+        raw         = ml_agent.predict(patient)
+        explanation = ml_agent.run(patient)
+        return {
+            "prediction":  raw["prediction"],
+            "probability": raw["probability"],
+            "label":       "DIABETIC" if raw["prediction"] == 1 else "NOT DIABETIC",
+            "explanation": explanation,
+        }
+    except Exception as e:
+        logger.error(f"Predict error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── API 3: Document Search ────────────────────────────────────────────────────
+@app.post("/api/search", summary="3. Document Search – RAG medical Q&A")
+def search(req: SearchRequest):
+    try:
+        logger.info(f"Search: {req.question}")
+        answer = doc_agent.run(req.question)
+        return {"question": req.question, "answer": answer, "source": "diabetes_knowledge_base"}
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── API 4: Agent Interaction ──────────────────────────────────────────────────
+@app.post("/api/agent", summary="4. Agent Interaction – Multi-agent orchestration")
+def agent(req: AgentRequest):
+    try:
+        logger.info(f"Agent: {req.query}")
+        result = orchestrator.run(req.query, req.patient_data)
+        return {"query": req.query, "agent_used": result["agent"], "response": result["response"]}
+    except Exception as e:
+        logger.error(f"Agent error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
+@app.get("/health")
+def health():
+    conn = get_sql_connection()
+    db_status = "Azure SQL connected" if conn else "No database"
+    if conn: conn.close()
+    return {
+        "status":   "ok",
+        "message":  "Healthcare AI Platform is running",
+        "database": db_status,
+        "agents":   ["orchestrator", "ml_expert", "document_assistant", "data_analyst"],
+    }
