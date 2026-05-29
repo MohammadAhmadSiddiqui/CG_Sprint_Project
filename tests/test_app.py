@@ -1,8 +1,3 @@
-"""
-Unit Tests – Healthcare Multi-Agent AI Platform
-Run with: pytest tests/test_app.py -v
-"""
-
 import pytest
 from fastapi.testclient import TestClient
 import sys

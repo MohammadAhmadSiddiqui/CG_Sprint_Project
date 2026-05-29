@@ -1,19 +1,3 @@
-"""
-Multi-Agent Orchestrator
-========================
-Routes user queries to the right agent based on intent:
-
-   DocumentAssistantAgent  → medical/disease knowledge questions
-   DataAnalystAgent        → dataset statistics & trends questions
-   MLExpertAgent           → patient risk prediction requests
-
-Usage:
-    from agents.orchestrator import Orchestrator
-    orch = Orchestrator()
-    reply = orch.run("What does HbA1c measure?")
-    print(reply)
-"""
-
 import os
 from dotenv import load_dotenv
 from openai import AzureOpenAI
